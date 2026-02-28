@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📂 Таблицы в базе данных</h2>
+
+<ul>
+{% for t in tables %}
+    <li>
+        <a href="/preview/{{ t[0] }}">{{ t[0] }}</a>
+    </li>
+{% endfor %}
+</ul>
+
+{% endblock %}

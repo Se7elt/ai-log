@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>🔍 Предпросмотр таблицы: {{ table }}</h2>
+
+<div class="table-container">
+<table>
+    <thead>
+        <tr>
+            {% for c in columns %}
+                <th>{{ c }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            {% for c in r %}
+                <td>
+                    <span class="cell" title="{{ c }}">{{ c }}</span>
+                </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<br>
+
+<form method="post" action="/use_table">
+    <input type="hidden" name="table" value="{{ table }}">
+    <button class="button">Использовать эту таблицу</button>
+</form>
+
+{% endblock %}

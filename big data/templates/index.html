@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>📋 Журнал логов</h1>
+
+{% if db_connected is defined and not db_connected %}
+<div style="display:flex; gap:12px; align-items:center; justify-content:center; margin:18px 0;">
+    <div style="font-size:28px; color:#ff9800;">❗</div>
+    <div style="font-size:16px; color:#b71c1c;"><strong>Отсутствует подключение к базе данных</strong></div>
+</div>
+{% endif %}
+
+<div id="resultsInfo" style="margin-bottom: 10px; font-size: 14px;">
+    {% if q or level != "all" %}
+        🔎 Найдено: <strong>{{ total_logs }}</strong>
+    {% else %}
+        📊 Всего записей: <strong>{{ total_logs }}</strong>
+    {% endif %}
+</div>
+
+<form id="searchForm" method="get"
+      style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+
+    <label><strong>Фильтр:</strong></label>
+
+    <select name="level" onchange="this.form.submit()">
+        {% for fk in filters_keys %}
+            {% if fk == "all" %}
+                <option value="all" {% if level == "all" %}selected{% endif %}>Все</option>
+            {% else %}
+                <option value="{{ fk }}" {% if level == fk %}selected{% endif %}>{{ fk.upper() }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+
+    <input
+        type="text"
+        name="q"
+        id="searchInput"
+        placeholder="🔍 Поиск по логам"
+        value="{{ q }}"
+        autocomplete="off"
+        style="min-width: 300px;"
+    >
+
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="order" value="{{ order }}">
+
+    <noscript>
+        <button class="button">Найти</button>
+    </noscript>
+</form>
+
+
+<div id="tableWrapper">
+    <div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                {% for col in columns %}
+                    <th>
+                        {% if sort == col %}
+                            {% if order == "asc" %}
+                                <a href="/?page={{ page }}&sort={{ col }}&order=desc" style="color:white">
+                                    {{ col }} ▲
+                                </a>
+                            {% else %}
+                                <a href="/?page={{ page }}&sort={{ col }}&order=asc" style="color:white">
+                                    {{ col }} ▼
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            <a href="/?page=1&sort={{ col }}&order=asc" style="color:white">
+                                {{ col }}
+                            </a>
+                        {% endif %}
+                    </th>
+                {% endfor %}
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for row in rows %}
+                {% set row_text = row|string|lower %}
+                {% set row_class = "" %}
+                {% set row_color = "" %}
+                {% for fname, fobj in filters.items() %}
+                    {% for w in fobj.words %}
+                        {% if not row_color and w in row_text %}
+                            {% set row_color = fobj.color %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                <tr {% if row_color %}style="background-color: {{ row_color }}; color: #000;"{% endif %} onclick="window.location='/log/{{ row[0] }}'">
+                    {% for cell in row %}
+                        <td>
+                            <span class="cell" title="{{ cell }}">
+                                {{ cell }}
+                            </span>
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+
+    </table>
+    </div>
+</div>
+
+<!-- ПАГИНАЦИЯ -->
+<div id="paginationWrapper">
+    <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+
+        <div>
+            {% if page > 1 %}
+            <a class="button"
+               href="/?page={{ page - 1 }}
+                      &sort={{ sort }}
+                      &order={{ order }}
+                      &level={{ level }}
+                      &q={{ q }}">
+                ⬅ Назад
+            </a>
+            {% endif %}
+        </div>
+
+        <div>
+            <strong>{{ page }}</strong> из <strong>{{ total_pages }}</strong>
+        </div>
+
+        <div>
+            {% if page < total_pages %}
+            <a class="button"
+               href="/?page={{ page + 1 }}
+                      &sort={{ sort }}
+                      &order={{ order }}
+                      &level={{ level }}
+                      &q={{ q }}">
+                Вперёд ➡
+            </a>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+
+
+<script>
+function applyHighlight() {
+    const query = document.getElementById("searchInput").value.trim();
+    if (!query) return;
+
+    const table = document.getElementById("tableWrapper");
+    highlightText(table, query);
+}
+
+// первичная подсветка (при обычной загрузке страницы)
+document.addEventListener("DOMContentLoaded", applyHighlight);
+
+// live-search
+let timeout = null;
+
+document.getElementById("searchInput").addEventListener("input", function () {
+    clearTimeout(timeout);
+
+    timeout = setTimeout(() => {
+        const form = document.getElementById("searchForm");
+        const params = new URLSearchParams(new FormData(form));
+        params.set("page", "1");
+
+        fetch("/?" + params.toString(), {
+            headers: { "X-Requested-With": "fetch" }
+        })
+        .then(r => r.text())
+        .then(html => {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+
+            const newTable = doc.getElementById("tableWrapper");
+            const newPagination = doc.getElementById("paginationWrapper");
+            const newResultsInfo = doc.getElementById("resultsInfo");
+
+            document.getElementById("tableWrapper").innerHTML = newTable.innerHTML;
+            document.getElementById("paginationWrapper").innerHTML = newPagination.innerHTML;
+            document.getElementById("resultsInfo").innerHTML = newResultsInfo.innerHTML;
+
+            // 🔵 ВАЖНО: подсветка ПОСЛЕ подмены HTML
+            applyHighlight();
+        });
+    }, 300);
+});
+</script>
+
+
+{% endblock %}

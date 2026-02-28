@@ -1,0 +1,28 @@
+{
+  "error": {
+    "words": [
+      "error",
+      "failed",
+      "denied",
+      "panic"
+    ],
+    "color": "#fdecea"
+  },
+  "warn": {
+    "words": [
+      "warn",
+      "timeout",
+      "retry",
+      "warn"
+    ],
+    "color": "#fff8e1"
+  },
+  "info": {
+    "words": [
+      "info",
+      "started",
+      "connected"
+    ],
+    "color": "#e8f5e9"
+  }
+}

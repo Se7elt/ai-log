@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>⚙️ Настройка вывода на контроллер</h1>
+
+<p>Визуализация экрана контроллера (интерактивный прототип). Слева — список логов, справа — счётчики.</p>
+
+<div style="display:flex; gap:18px; align-items:flex-start; margin-top:12px;">
+    <!-- LEFT: logs list (simulates buttons on device) -->
+    <div id="ctrl-left" style="width:360px; border:1px solid #ddd; background:white; padding:8px; border-radius:6px; max-height:520px; overflow:auto;">
+        <h3 style="margin-top:6px; margin-bottom:8px;">Логи</h3>
+        <div id="logList"></div>
+    </div>
+
+    <!-- RIGHT: counters and preview -->
+    <div id="ctrl-right" style="flex:1; max-width:320px;">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <div id="counters" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="preview" style="border:1px solid #ddd; background:#fafafa; padding:10px; border-radius:6px; min-height:160px;">
+                <strong>Превью карточки (выбранный лог)</strong>
+                <div id="previewBody" style="margin-top:8px; color:#222;">Ничего не выбрано</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top:14px;">
+    <button id="refreshBtn" class="button" type="button">Обновить сейчас</button>
+    <button id="useMock" class="button" type="button" style="background:#1976d2; margin-left:8px;">Использовать mock-данные</button>
+</div>
+
+<hr style="margin-top:18px;">
+
+<h3>Настройки отображения (шаблон)</h3>
+<form style="max-width:800px; margin-top:8px;">
+    <div style="margin-bottom:10px;">
+        <label><strong>Поля для отображения (одна строка — одно поле)</strong></label>
+        <textarea id="fieldsTextarea" rows="4" style="width:100%;" placeholder="timestamp\nlevel\nmessage\nsource"></textarea>
+    </div>
+    <div style="display:flex; gap:8px;">
+        <input id="intervalInput" placeholder="Интервал обновления (сек.)" value="10" style="width:160px;">
+        <button class="button" type="button" disabled>Сохранить (пока шаблон)</button>
+    </div>
+</form>
+
+<script>
+// Controller mock UI logic (mirrors lv_code behavior)
+let logs = [];
+let counts = { "1":0, "15":0, "60":0 };
+let useMock = false;
+
+function renderCounters() {
+    const container = document.getElementById('counters');
+    container.innerHTML = '';
+    const items = [
+        {k: '1', label: '1m'},
+        {k: '15', label: '15m'},
+        {k: '60', label: '60m'}
+    ];
+    items.forEach(it => {
+        const el = document.createElement('div');
+        el.style.border = '1px solid #eee';
+        el.style.padding = '8px';
+        el.style.borderRadius = '6px';
+        el.style.background = 'white';
+        el.innerHTML = `<div style="font-weight:600">${it.label}:</div><div style="font-size:20px">${counts[it.k]||0}</div>`;
+        container.appendChild(el);
+    });
+}
+
+function renderLogList() {
+    const list = document.getElementById('logList');
+    list.innerHTML = '';
+    if (!logs.length) {
+        list.innerHTML = '<div style="color:#666">Нет логов</div>';
+        document.getElementById('previewBody').textContent = 'Ничего не выбрано';
+        return;
+    }
+    logs.forEach((l, idx) => {
+        const btn = document.createElement('div');
+        btn.style.border = '1px solid #ddd';
+        btn.style.padding = '8px';
+        btn.style.marginBottom = '8px';
+        btn.style.borderRadius = '6px';
+        btn.style.cursor = 'pointer';
+        btn.style.background = '#fff';
+        btn.textContent = `ID:${l.id}  IP:${l.ip_address}`;
+        btn.onclick = () => showLogDetail(idx);
+        list.appendChild(btn);
+    });
+}
+
+function showLogDetail(idx) {
+    const l = logs[idx];
+    const body = document.getElementById('previewBody');
+    if (!l) { body.textContent = 'Нет данных'; return; }
+    body.innerHTML = `
+        <div><strong>ID:</strong> ${l.id}</div>
+        <div><strong>IP:</strong> ${l.ip_address}</div>
+        <div><strong>Time:</strong> ${l.timestamp}</div>
+        <div><strong>CPU:</strong> ${l.cpu_load}%</div>
+        <div><strong>RAM:</strong> ${l.ram_usage}%</div>
+        <div><strong>Temp:</strong> ${l.temperature}°C</div>
+        <div style="margin-top:8px;"><strong>Msg:</strong><div style="white-space:pre-wrap; border:1px solid #eee; padding:6px; border-radius:4px; background:#fff; margin-top:6px;">${l.log_message}</div></div>
+    `;
+}
+
+async function fetchLogs() {
+    const url = '/api/logs';
+    try {
+        if (useMock) throw new Error('using mock');
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error('http ' + r.status);
+        const data = await r.json();
+        parseLogs(data);
+    } catch (e) {
+        // fallback to mock data
+        parseLogs(mockData());
+    }
+}
+
+function parseLogs(data) {
+    counts = data.counts || { "1":0, "15":0, "60":0 };
+    const arr = data.logs || [];
+    logs = arr.map(o => ({
+        id: o.id || 0,
+        timestamp: o.timestamp || '',
+        ip_address: o.ip_address || '',
+        cpu_load: o.cpu_load || 0,
+        ram_usage: o.ram_usage || 0,
+        temperature: o.temperature || 0,
+        log_message: o.log_message || ''
+    }));
+    renderLogList();
+    renderCounters();
+}
+
+function mockData() {
+    return {
+        counts: { "1": 2, "15": 5, "60": 12 },
+        logs: [
+            { id: 101, timestamp: "2026-02-04 10:12:01", ip_address: "10.0.0.5", cpu_load: 12.3, ram_usage: 45.6, temperature: 36.5, log_message: "Service started" },
+            { id: 102, timestamp: "2026-02-04 10:15:22", ip_address: "10.0.0.7", cpu_load: 55.1, ram_usage: 78.2, temperature: 42.0, log_message: "Error: disk full" }
+        ]
+    };
+}
+
+document.getElementById('refreshBtn').addEventListener('click', fetchLogs);
+document.getElementById('useMock').addEventListener('click', function(){ useMock = true; fetchLogs(); });
+
+// initial render
+parseLogs(mockData());
+</script>
+
+{% endblock %}
+

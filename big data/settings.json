@@ -1,0 +1,4 @@
+{
+  "logs_per_page": 10,
+  "model": "qwen3:4b"
+}

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Log Assistant</title>
+<style>
+body {
+    font-family: "Segoe UI", sans-serif;
+    background-color: #f4f9f4;
+    color: #1f3d1f;
+    margin: 40px;
+}
+
+h1, h2, h3 { color: #2e7d32; }
+
+/* ====== ТАБЛИЦА ====== */
+
+.table-container {
+    max-height: 600px;
+    overflow: auto;
+    border: 1px solid #c8e6c9;
+    background: white;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 1200px; /* горизонтальный скролл */
+}
+
+thead th {
+    position: sticky;
+    top: 0;
+    background-color: #2e7d32;
+    color: white;
+    padding: 10px;
+    z-index: 2;
+    text-align: left;
+    white-space: nowrap;
+}
+
+td {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    font-family: Consolas, monospace;
+    vertical-align: top;
+}
+
+/* ====== ОБРЕЗКА ДЛИННЫХ ЗНАЧЕНИЙ ====== */
+
+.cell {
+    max-width: 350px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: help;
+    display: block;
+}
+
+.cell:hover {
+    white-space: normal;
+    background: #f1f8e9;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+/* ====== ПРОЧЕЕ ====== */
+
+tr:hover { background-color: #e8f5e9; }
+
+button, .button {
+    background-color: #2e7d32;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+input, textarea {
+    padding: 6px;
+    margin: 4px;
+    width: 100%;
+}
+
+.badge {
+    background: #2e7d32;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+/* ====== КАРТОЧКА ЛОГА ====== */
+
+.log-card {
+    background: white;
+    border: 1px solid #c8e6c9;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 30px;
+}
+
+.log-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    border-bottom: 1px solid #eee;
+    padding: 6px 0;
+}
+
+.log-row:last-child {
+    border-bottom: none;
+}
+
+.log-key {
+    font-weight: bold;
+    color: #2e7d32;
+    word-break: break-all;
+}
+
+.log-value {
+    font-family: Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ====== COLLAPSIBLE ====== */
+
+.collapsible {
+    max-height: 3.6em;
+    overflow: hidden;
+    position: relative;
+}
+
+.collapsible.expanded {
+    max-height: none;
+}
+
+.toggle-btn {
+    color: #2e7d32;
+    cursor: pointer;
+    font-size: 12px;
+    user-select: none;
+}
+
+.log-error {
+    background-color: #fdecea;
+    color: #b71c1c;
+}
+
+.log-warn {
+    background-color: #fff8e1;
+    color: #8d6e00;
+}
+
+.log-info {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+}
+
+/* для карточки */
+.log-value.log-error,
+.log-value.log-warn,
+.log-value.log-info {
+    border-radius: 4px;
+    padding: 6px;
+}
+
+tr.log-error:hover,
+tr.log-warn:hover,
+tr.log-info:hover {
+    filter: brightness(0.97);
+}
+
+select {
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #c8e6c9;
+}
+
+.highlight {
+    background-color: #b3e5fc; /* голубой */
+    color: #01579b;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+</style>
+</head>
+<body>
+
+<header style="display:flex; gap:12px; align-items:center; margin-bottom:18px;">
+    <a href="/" class="button" style="padding:6px 10px; background:#2e7d32;">Главная</a>
+    <a href="/settings" class="button" style="padding:6px 10px; background:#2e7d32;">Настройки</a>
+    <a href="/controller" class="button" style="padding:6px 10px; background:#2e7d32;">Контроллер</a>
+
+    <div style="margin-left:auto; display:flex; align-items:center;">
+        <button id="notifBtn" class="button" style="position:relative; padding:6px 10px; display:inline-flex; align-items:center; justify-content:center;">
+            🔔
+            <span id="notifBadge" style="display:none; position:absolute; top:-6px; right:-6px; background:#b71c1c; color:white; padding:2px 6px; border-radius:12px; font-size:12px;">0</span>
+        </button>
+    </div>
+</header>
+
+<!-- Панель уведомлений справа -->
+<div id="notifPanel" style="display:none; position:fixed; top:72px; right:18px; width:360px; max-height:70vh; overflow:auto; background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,0.12); z-index:2001; padding:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong>Уведомления</strong>
+        <div>
+            <button id="clearNotifs" class="button" style="background:#b71c1c; padding:6px 8px;">Удалить все</button>
+            <button id="closeNotifs" class="button" style="background:#9e9e9e; padding:6px 8px; margin-left:6px;">Закрыть</button>
+        </div>
+    </div>
+    <div id="notifList">
+        <em>Загрузка...</em>
+    </div>
+</div>
+
+<script>
+async function fetchNotifCount() {
+    try {
+        const r = await fetch('/notifications');
+        if (!r.ok) return;
+        const data = await r.json();
+        const count = data.count || 0;
+        const badge = document.getElementById('notifBadge');
+        if (count > 0) {
+            badge.style.display = 'inline-block';
+            badge.textContent = String(count);
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function openNotifPanel() {
+    const panel = document.getElementById('notifPanel');
+    const list = document.getElementById('notifList');
+    panel.style.display = 'block';
+    list.innerHTML = '<em>Загрузка...</em>';
+    try {
+        const r = await fetch('/notifications');
+        const data = await r.json();
+        const notifs = data.notifications || [];
+        if (notifs.length === 0) {
+            list.innerHTML = '<div style="color:#666">Уведомлений нет</div>';
+        } else {
+            list.innerHTML = '';
+            notifs.forEach(n => {
+                const el = document.createElement('div');
+                el.style.padding = '8px';
+                el.style.borderBottom = '1px solid #eee';
+                el.innerHTML = `<div style="font-size:13px; color:#222">${escapeHtml(n.title || n.text || n)}</div><div style="font-size:12px; color:#666">${n.time || ''}</div>`;
+                list.appendChild(el);
+            });
+        }
+    } catch (e) {
+        list.innerHTML = '<div style="color:#b71c1c">Ошибка загрузки</div>';
+    }
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    return s.toString().replace(/[&<>"']/g, function(m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+}
+
+document.getElementById('notifBtn').addEventListener('click', function () {
+    const panel = document.getElementById('notifPanel');
+    if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+    } else {
+        openNotifPanel();
+    }
+});
+
+document.getElementById('closeNotifs').addEventListener('click', function () {
+    document.getElementById('notifPanel').style.display = 'none';
+});
+
+document.getElementById('clearNotifs').addEventListener('click', async function () {
+    if (!confirm('Удалить все уведомления?')) return;
+    try {
+        const r = await fetch('/notifications/clear', { method: 'POST' });
+        if (r.ok) {
+            document.getElementById('notifList').innerHTML = '<div style="color:#666">Уведомлений нет</div>';
+            document.getElementById('notifBadge').style.display = 'none';
+        } else {
+            alert('Ошибка удаления');
+        }
+    } catch (e) {
+        alert('Ошибка удаления');
+    }
+});
+
+// poll count every 10s
+fetchNotifCount();
+setInterval(fetchNotifCount, 10000);
+</script>
+
+{% block content %}{% endblock %}
+
+<!-- ✅ ГЛОБАЛЬНЫЙ JS -->
+<script>
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightText(container, query) {
+    if (!container || !query) return;
+
+    const safeQuery = escapeRegExp(query);
+    const regex = new RegExp(`(${safeQuery})`, "gi");
+
+    container.querySelectorAll(".cell, .log-value").forEach(el => {
+        el.innerHTML = el.textContent.replace(
+            regex,
+            '<span class="highlight">$1</span>'
+        );
+    });
+}
+</script>
+
+</body>
+</html>

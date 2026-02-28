@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>🧭 Карточка лога</h2>
+
+<div class="log-card">
+    {% for col in columns %}
+        {% set val = log_row[loop.index0] %}
+        <div class="log-row">
+            <div class="log-key">{{ col }}</div>
+            {% set text = val|string|lower %}
+
+<div class="
+    log-value
+    {% if 'error' in text or 'failed' in text or 'denied' in text or 'panic' in text %}
+        log-error
+    {% elif 'warn' in text or 'timeout' in text or 'retry' in text %}
+        log-warn
+    {% elif 'info' in text or 'started' in text or 'connected' in text %}
+        log-info
+    {% endif %}
+">
+    {% if val and val|string|length > 120 %}
+        <div class="collapsible" id="c{{ loop.index }}">
+            {{ val }}
+        </div>
+        <div class="toggle-btn"
+             onclick="toggleCollapse('c{{ loop.index }}', this)">
+            показать полностью
+        </div>
+    {% else %}
+        {{ val }}
+    {% endif %}
+</div>
+        </div>
+    {% endfor %}
+</div>
+
+<br>
+
+<h3>🛠 Решения</h3>
+
+{% if solutions %}
+    {% for s in solutions %}
+        <div style="margin-bottom: 15px;">
+            <span class="badge">{{ s[1] }}</span>
+            <small style="color: #666;">{{ s[2] }}</small>
+            <pre style="background:#f6fff6; padding:10px;">{{ s[0] }}</pre>
+        </div>
+    {% endfor %}
+{% else %}
+    <p>Решений пока нет</p>
+{% endif %}
+
+<hr>
+
+<h3>✍️ Добавить решение</h3>
+
+<form method="post" action="/add_solution">
+    <input type="hidden" name="log_id" value="{{ log_id }}">
+    <textarea
+    name="solution"
+    id="solutionTextarea"
+    rows="8"
+    style="width: 100%;"
+    ></textarea><br><br>
+    <button class="button" type="submit">Сохранить</button>
+</form>
+
+<br>
+<button
+    class="button"
+    type="button"
+    onclick="loadAISolution(this)"
+>
+    🤖 Добавить решение от ИИ
+</button>
+
+<script>
+function toggleCollapse(id, btn) {
+    const el = document.getElementById(id);
+    el.classList.toggle("expanded");
+    btn.textContent = el.classList.contains("expanded")
+        ? "свернуть"
+        : "показать полностью";
+}
+</script>
+<script>
+highlightText(document, "{{ q|default('') }}");
+</script>
+<script>
+const aiModel = "{{ ai_model|default('') }}";
+
+function loadAISolution(btn) {
+    // client-side check: if no model configured, warn and log notification
+    if (!aiModel) {
+        alert("ИИ не настроен. Откройте страницу настроек и выберите модель.");
+        // log notification on server
+        fetch("/notifications/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ title: "AI generation blocked", text: "User attempted AI generation but no model configured" })
+        }).catch(()=>{});
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "🤖 Генерирую решение...";
+
+    const textarea = document.getElementById("solutionTextarea");
+
+    fetch("/ai_solution?log_id={{ log_id }}", { method: "POST" })
+        .then(async r => {
+            const text = await r.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                throw new Error("Сервер вернул не JSON:\n" + text);
+            }
+        })
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            textarea.value = data.text;
+            textarea.focus();
+        })
+        .catch(err => {
+            alert("Ошибка ИИ: " + err.message);
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = "🤖 Добавить решение от ИИ";
+        });
+}
+
+</script>
+{% endblock %}
+
+
