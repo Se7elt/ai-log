@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Form
+﻿from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from db import get_logs_conn, ensure_solution_table
@@ -189,7 +189,7 @@ def log_detail(request: Request, log_id: str):
     if not log_row:
         cur.close()
         conn.close()
-        return HTMLResponse("Лог не найден", status_code=404)
+        return HTMLResponse("Р›РѕРі РЅРµ РЅР°Р№РґРµРЅ", status_code=404)
 
     columns = [desc[0] for desc in cur.description]
     cur.execute("""
@@ -225,7 +225,7 @@ def add_solution(log_id: str = Form(...), solution: str = Form(...)):
 
 
 @router.post("/ai_solution")
-def ai_solution(log_id: str):
+def ai_solution(log_id: str, mode: str = "reasoning"):
     cfg = load_config()
     conn = get_logs_conn(cfg)
     cur = conn.cursor()
@@ -235,25 +235,38 @@ def ai_solution(log_id: str):
     cur.close()
     conn.close()
     if not row:
-        return {"error": "Лог не найден"}
+        return {"error": "Р›РѕРі РЅРµ РЅР°Р№РґРµРЅ"}
     log_text = "\n".join(f"{columns[i]}: {row[i]}" for i in range(len(columns)))
     try:
         settings = load_settings()
         model = settings.get("model")
+        ai_options = settings.get("ai_options") or {}
+        ai_provider = (settings.get("ai_provider") or "ollama").strip().lower()
         if not model:
             # log attempt and inform client
             try:
                 add_notification("AI request blocked", "User attempted AI generation but no model is configured")
             except Exception:
                 pass
-            return JSONResponse(status_code=400, content={"error": "ИИ не настроен. Откройте настройки."})
+            return JSONResponse(status_code=400, content={"error": "РР РЅРµ РЅР°СЃС‚СЂРѕРµРЅ. РћС‚РєСЂРѕР№С‚Рµ РЅР°СЃС‚СЂРѕР№РєРё."})
 
-        answer = generate_solution(log_text, timeout=300, model=model)
+        use_mode = (mode or "reasoning").strip().lower()
+        enable_thinking = use_mode != "fast"
+        answer = generate_solution(
+            log_text,
+            timeout=300,
+            model=model,
+            provider=ai_provider,
+            options=ai_options,
+            enable_thinking=enable_thinking,
+        )
         return {"text": answer}
     except Exception as e:
         try:
             add_notification("AI generation error", str(e))
         except Exception:
             pass
-        return JSONResponse(status_code=200, content={"error": f"Ошибка генерации: {str(e)}"})
+        return JSONResponse(status_code=200, content={"error": f"РћС€РёР±РєР° РіРµРЅРµСЂР°С†РёРё: {str(e)}"})
+
+
 

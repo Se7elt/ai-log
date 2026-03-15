@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block content %}
 
-<h1>⚙️ Настройки</h1>
+<h1>Настройки</h1>
 
 <form method="post" style="max-width:600px;">
     <div style="margin-bottom:12px;">
@@ -14,12 +14,56 @@
     </div>
 
     <div style="margin-bottom:12px;">
+        <label><strong>Провайдер ИИ</strong></label>
+        <select name="ai_provider" id="aiProvider">
+            {% for p in providers %}
+                <option value="{{ p.value }}" {% if ai_provider == p.value %}selected{% endif %}>{{ p.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="margin-bottom:12px;">
         <label><strong>Модель ИИ</strong></label>
-        <select name="model">
+        <select name="model" id="aiModel" data-selected="{{ settings.get('model', '') }}">
             {% for m in models %}
                 <option value="{{ m }}" {% if settings.get("model") == m %}selected{% endif %}>{{ m }}</option>
             {% endfor %}
         </select>
+    </div>
+
+    <div style="margin:18px 0 8px;">
+        <strong>Настройки для разработчиков (ИИ модель)</strong>
+    </div>
+    <div style="margin-bottom:10px;">
+        <button type="button" id="unlockDevSettings" class="button" style="background:#455a64;">Открыть настройки разработчика</button>
+    </div>
+
+    <div id="devSettings" style="padding:12px; border:1px solid #ddd; border-radius:6px; margin-bottom:12px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <label>
+                <div><strong>Context length</strong></div>
+                <input type="number" name="context_length" min="256" step="1" value="{{ ai_options.get('context_length','') }}" readonly>
+            </label>
+            <label>
+                <div><strong>GPU offload</strong></div>
+                <input type="number" name="gpu_offload" min="0" step="1" value="{{ ai_options.get('gpu_offload','') }}" readonly>
+            </label>
+            <label>
+                <div><strong>CPU thread pool size</strong></div>
+                <input type="number" name="cpu_threads" min="1" step="1" value="{{ ai_options.get('cpu_threads','') }}" readonly>
+            </label>
+            <label>
+                <div><strong>Evaluation batch size</strong></div>
+                <input type="number" name="eval_batch_size" min="1" step="1" value="{{ ai_options.get('eval_batch_size','') }}" readonly>
+            </label>
+            <label style="grid-column:1 / span 2;">
+                <div><strong>Temperature</strong></div>
+                <input type="number" name="temperature" min="0" max="2" step="0.01" value="{{ ai_options.get('temperature','') }}" readonly>
+            </label>
+        </div>
+        <div style="font-size:12px; color:#666; margin-top:8px;">
+            Эти параметры влияют на производительность, стабильность и потребление ресурсов. Изменяйте осторожно.
+        </div>
     </div>
 
     <div>
@@ -31,16 +75,14 @@
     <button type="button" id="resetBtn" class="button" style="background:#b71c1c;">Полный сброс настроек</button>
 </form>
 
-<!-- Кнопка редактирования фильтров -->
 <div style="margin-top:16px;">
     <button id="editFiltersBtn" class="button" type="button" style="background:#1976d2;">Редактировать фильтры (ключевые слова)</button>
 </div>
 
-<!-- Модальное окно редактирования фильтров -->
 <div id="filtersModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
     <div style="background:white; padding:18px; border-radius:8px; max-width:720px; width:94%; box-shadow:0 8px 32px rgba(0,0,0,0.2);">
         <h3 style="margin-top:0;">Редактирование фильтров</h3>
-        <p style="margin-bottom:8px;">Каждая строка — отдельный фильтр в формате <code>имя_фильтра: [#HEX] слово1 слово2 слово3</code>. Если после двоеточия указать цвет в формате <code>#RRGGBB</code> или <code>#RGB</code>, он будет использован для подсветки. Пример:</p>
+        <p style="margin-bottom:8px;">Каждая строка: <code>имя_фильтра: [#HEX] слово1 слово2 слово3</code>.</p>
         <pre style="background:#f6f6f6; padding:8px; border-radius:4px;">error: #fdecea error failed denied panic
 warn: #fff8e1 warn timeout retry
 info: #e8f5e9 info started connected</pre>
@@ -55,14 +97,29 @@ info: #e8f5e9 info started connected</pre>
     </div>
 </div>
 
-<!-- Модальное окно подтверждения -->
 <div id="resetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
     <div style="background:white; padding:20px; border-radius:8px; max-width:520px; width:90%; box-shadow:0 6px 24px rgba(0,0,0,0.2);">
         <h3 style="margin-top:0;">Подтвердите полный сброс</h3>
-        <p>Вы действительно хотите выполнить полный сброс? Будут удалены настройки подключения, выбранная таблица и таблица ответов ИИ в базе данных. Действие необратимо.</p>
+        <p>Будут удалены настройки подключения, выбранная таблица и таблица ответов ИИ. Действие необратимо.</p>
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
             <button id="cancelReset" class="button" type="button" style="background:#9e9e9e;">Отмена</button>
             <button id="confirmReset" class="button" type="button" style="background:#b71c1c;">Подтвердить сброс</button>
+        </div>
+    </div>
+</div>
+
+<div id="devWarningModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+    <div style="background:white; padding:20px; border-radius:8px; max-width:560px; width:92%; box-shadow:0 6px 24px rgba(0,0,0,0.2);">
+        <h3 style="margin-top:0;">Внимание: настройки разработчика</h3>
+        <ul style="margin:8px 0 12px; padding-left:18px;">
+            <li>Неправильные значения могут резко снизить производительность.</li>
+            <li>Высокая нагрузка способна привести к перегреву компонентов.</li>
+            <li>Возможны повышенное энергопотребление и шум системы охлаждения.</li>
+            <li>Слишком большие значения могут вызвать сбои или зависания.</li>
+        </ul>
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+            <button id="cancelDev" class="button" type="button" style="background:#9e9e9e;">Отмена</button>
+            <button id="confirmDev" class="button" type="button" style="background:#455a64;">Понимаю риски</button>
         </div>
     </div>
 </div>
@@ -75,13 +132,11 @@ document.getElementById("cancelReset").addEventListener("click", function () {
     document.getElementById("resetModal").style.display = "none";
 });
 document.getElementById("confirmReset").addEventListener("click", function () {
-    // отправляем форму на сброс
     document.getElementById("resetForm").submit();
 });
 </script>
 
 <script>
-// filters modal handlers
 document.getElementById("editFiltersBtn").addEventListener("click", function () {
     document.getElementById("filtersModal").style.display = "flex";
 });
@@ -90,5 +145,71 @@ document.getElementById("cancelFilters").addEventListener("click", function () {
 });
 </script>
 
-{% endblock %}
+<script>
+const providerSelect = document.getElementById("aiProvider");
+const modelSelect = document.getElementById("aiModel");
 
+async function reloadModels() {
+    const provider = providerSelect.value;
+    const previousModel = modelSelect.value || modelSelect.dataset.selected || "";
+
+    try {
+        const r = await fetch(`/ai_models?provider=${encodeURIComponent(provider)}`);
+        const data = await r.json();
+        const models = Array.isArray(data.models) ? data.models : [];
+
+        modelSelect.innerHTML = "";
+        if (!models.length) {
+            const opt = document.createElement("option");
+            opt.value = previousModel || "qwen3:4b";
+            opt.textContent = previousModel || "qwen3:4b";
+            modelSelect.appendChild(opt);
+            return;
+        }
+
+        models.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            modelSelect.appendChild(opt);
+        });
+
+        if (models.includes(previousModel)) {
+            modelSelect.value = previousModel;
+        } else {
+            modelSelect.value = models[0];
+        }
+    } catch (e) {
+        console.error("Failed to load models", e);
+    }
+}
+
+providerSelect.addEventListener("change", reloadModels);
+</script>
+
+<script>
+const devButton = document.getElementById("unlockDevSettings");
+const devModal = document.getElementById("devWarningModal");
+const devCancel = document.getElementById("cancelDev");
+const devConfirm = document.getElementById("confirmDev");
+const devInputs = Array.from(document.querySelectorAll("#devSettings input"));
+
+function unlockDevSettings() {
+    devInputs.forEach((el) => {
+        el.removeAttribute("readonly");
+    });
+}
+
+devButton.addEventListener("click", function () {
+    devModal.style.display = "flex";
+});
+devCancel.addEventListener("click", function () {
+    devModal.style.display = "none";
+});
+devConfirm.addEventListener("click", function () {
+    devModal.style.display = "none";
+    unlockDevSettings();
+});
+</script>
+
+{% endblock %}
