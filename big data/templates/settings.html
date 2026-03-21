@@ -1,82 +1,206 @@
 ﻿{% extends "base.html" %}
 {% block content %}
 
+<style>
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 980px;
+}
+.settings-card {
+    background: #ffffff;
+    border: 1px solid #c8e6c9;
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+.settings-card h3 {
+    margin: 0 0 10px 0;
+    color: #2e7d32;
+    font-size: 16px;
+}
+.settings-card .muted {
+    font-size: 12px;
+    color: #666;
+}
+.settings-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+.settings-row.two {
+    grid-template-columns: 1fr 1fr;
+}
+.settings-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.settings-full {
+    grid-column: 1 / span 2;
+}
+@media (max-width: 900px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+    .settings-full {
+        grid-column: 1 / span 1;
+    }
+    .settings-row.two {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
 <h1>Настройки</h1>
 
-<form method="post" style="max-width:600px;">
-    <div style="margin-bottom:12px;">
-        <label><strong>Логов на страницу</strong></label>
-        <select name="logs_per_page">
-            {% for n in [5,10,20,50,100] %}
-                <option value="{{ n }}" {% if settings.get("logs_per_page", 10) == n %}selected{% endif %}>{{ n }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div style="margin-bottom:12px;">
-        <label><strong>Провайдер ИИ</strong></label>
-        <select name="ai_provider" id="aiProvider">
-            {% for p in providers %}
-                <option value="{{ p.value }}" {% if ai_provider == p.value %}selected{% endif %}>{{ p.label }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div style="margin-bottom:12px;">
-        <label><strong>Модель ИИ</strong></label>
-        <select name="model" id="aiModel" data-selected="{{ settings.get('model', '') }}">
-            {% for m in models %}
-                <option value="{{ m }}" {% if settings.get("model") == m %}selected{% endif %}>{{ m }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div style="margin:18px 0 8px;">
-        <strong>Настройки для разработчиков (ИИ модель)</strong>
-    </div>
-    <div style="margin-bottom:10px;">
-        <button type="button" id="unlockDevSettings" class="button" style="background:#455a64;">Открыть настройки разработчика</button>
-    </div>
-
-    <div id="devSettings" style="padding:12px; border:1px solid #ddd; border-radius:6px; margin-bottom:12px;">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <label>
-                <div><strong>Context length</strong></div>
-                <input type="number" name="context_length" min="256" step="1" value="{{ ai_options.get('context_length','') }}" readonly>
-            </label>
-            <label>
-                <div><strong>GPU offload</strong></div>
-                <input type="number" name="gpu_offload" min="0" step="1" value="{{ ai_options.get('gpu_offload','') }}" readonly>
-            </label>
-            <label>
-                <div><strong>CPU thread pool size</strong></div>
-                <input type="number" name="cpu_threads" min="1" step="1" value="{{ ai_options.get('cpu_threads','') }}" readonly>
-            </label>
-            <label>
-                <div><strong>Evaluation batch size</strong></div>
-                <input type="number" name="eval_batch_size" min="1" step="1" value="{{ ai_options.get('eval_batch_size','') }}" readonly>
-            </label>
-            <label style="grid-column:1 / span 2;">
-                <div><strong>Temperature</strong></div>
-                <input type="number" name="temperature" min="0" max="2" step="0.01" value="{{ ai_options.get('temperature','') }}" readonly>
-            </label>
+<form method="post">
+    <div class="settings-grid">
+        <div class="settings-card">
+            <h3>Общие</h3>
+            <div class="settings-row">
+                <label><strong>Логов на страницу</strong></label>
+                <select name="logs_per_page">
+                    {% for n in [5,10,20,50,100] %}
+                        <option value="{{ n }}" {% if settings.get("logs_per_page", 10) == n %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
-        <div style="font-size:12px; color:#666; margin-top:8px;">
-            Эти параметры влияют на производительность, стабильность и потребление ресурсов. Изменяйте осторожно.
+
+        <div class="settings-card">
+            <h3>Провайдер ИИ</h3>
+            <div class="settings-row">
+                <label><strong>Провайдер</strong></label>
+                <select name="ai_provider" id="aiProvider">
+                    {% for p in providers %}
+                        <option value="{{ p.value }}" {% if ai_provider == p.value %}selected{% endif %}>{{ p.label }}</option>
+                    {% endfor %}
+                </select>
+                <label><strong>Модель</strong></label>
+                <select name="model" id="aiModel" data-selected="{{ settings.get('model', '') }}">
+                    {% for m in models %}
+                        <option value="{{ m }}" {% if settings.get("model") == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <h3>RAG</h3>
+        <div class="settings-row">
+            <label style="display:block; text-align:left;">
+                <input type="checkbox" name="rag_enabled" value="1" {% if rag_enabled %}checked{% endif %} style="width:auto; margin:0 6px 0 0; vertical-align:middle;">&nbsp;&nbsp;<strong>Использовать RAG (экспериментально)</strong>
+            </label>
+            <div class="muted">Включает использование документированного контекста, если он доступен у провайдера.</div>
+            <label><strong>Embedding модель</strong></label>
+            <select name="rag_embedding_model" id="ragEmbeddingModel" data-selected="{{ rag_embedding_model }}">
+                {% if embedding_models and embedding_models|length > 0 %}
+                    {% for m in embedding_models %}
+                        <option value="{{ m }}" {% if rag_embedding_model == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                {% else %}
+                    <option value="{{ rag_embedding_model }}">{{ rag_embedding_model }}</option>
+                {% endif %}
+            </select>
+            <div class="settings-row two" style="align-items:end;">
+                <label>
+                    <div><strong>RAG top_k</strong></div>
+                    <input type="number" name="rag_top_k" min="1" step="1" value="{{ rag_top_k }}">
+                </label>
+                <label>
+                    <div><strong>Макс. размер контекста (символы)</strong></div>
+                    <input type="number" name="rag_max_chars" min="200" step="50" value="{{ rag_max_chars }}">
+                </label>
+            </div>
+        </div>
+        </div>
+
+        <div class="settings-card">
+            <h3>Настройки разработчика</h3>
+            <div class="settings-actions" style="margin-bottom:10px;">
+                <button type="button" id="unlockDevSettings" class="button" style="background:#455a64;">Открыть настройки разработчика</button>
+                <span class="muted">Изменяйте осторожно</span>
+            </div>
+            <div id="devSettings" class="settings-row two">
+                <label>
+                    <div><strong>Context length</strong></div>
+                    <input type="number" name="context_length" min="256" step="1" value="{{ ai_options.get('context_length','') }}" readonly>
+                </label>
+                <label>
+                    <div><strong>GPU offload</strong></div>
+                    <input type="number" name="gpu_offload" min="0" step="1" value="{{ ai_options.get('gpu_offload','') }}" readonly>
+                </label>
+                <label>
+                    <div><strong>CPU thread pool size</strong></div>
+                    <input type="number" name="cpu_threads" min="1" step="1" value="{{ ai_options.get('cpu_threads','') }}" readonly>
+                </label>
+                <label>
+                    <div><strong>Evaluation batch size</strong></div>
+                    <input type="number" name="eval_batch_size" min="1" step="1" value="{{ ai_options.get('eval_batch_size','') }}" readonly>
+                </label>
+                <label style="grid-column:1 / span 2;">
+                    <div><strong>Temperature</strong></div>
+                    <input type="number" name="temperature" min="0" max="2" step="0.01" value="{{ ai_options.get('temperature','') }}" readonly>
+                </label>
+            </div>
+            <div class="muted" style="margin-top:8px;">
+                Эти параметры влияют на производительность, стабильность и потребление ресурсов.
+            </div>
+        </div>
+
+    <div class="settings-card settings-full">
+        <h3>Действия</h3>
+        <div class="settings-actions">
+            <button class="button" type="submit">Сохранить</button>
+            <button type="button" id="resetBtn" class="button" style="background:#b71c1c;">Полный сброс настроек</button>
+            <button id="editFiltersBtn" class="button" type="button" style="background:#1976d2;">Редактировать фильтры</button>
         </div>
     </div>
-
-    <div>
-        <button class="button" type="submit">Сохранить</button>
     </div>
 </form>
 
-<form id="resetForm" method="post" action="/reset" style="margin-top:16px;">
-    <button type="button" id="resetBtn" class="button" style="background:#b71c1c;">Полный сброс настроек</button>
-</form>
+<div class="settings-grid" style="margin-top:16px;">
+    <div class="settings-card settings-full">
+        <h3>RAG документы</h3>
+        <form method="post" action="/rag/upload" enctype="multipart/form-data" class="settings-actions" style="margin-top:8px;">
+            <input type="file" name="file" accept=".txt,.md">
+            <button class="button" type="submit" style="background:#455a64;">Загрузить</button>
+        </form>
+        <div class="settings-actions" style="margin-top:8px;">
+            <form method="post" action="/rag/reindex">
+                <button class="button" type="submit" style="background:#455a64;">Переиндексировать</button>
+            </form>
+            <form method="post" action="/rag/clear_index">
+                <button class="button" type="submit" style="background:#9e9e9e;">Очистить индекс</button>
+            </form>
+        </div>
 
-<div style="margin-top:16px;">
-    <button id="editFiltersBtn" class="button" type="button" style="background:#1976d2;">Редактировать фильтры (ключевые слова)</button>
+        {% if rag_docs and rag_docs|length > 0 %}
+            <div style="margin-top:12px;">
+                <strong>Загруженные документы</strong>
+                <div style="margin-top:6px; display:grid; gap:6px;">
+                    {% for doc in rag_docs %}
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 8px; border:1px solid #e0e0e0; border-radius:6px;">
+                            <div style="font-size:13px; color:#333;">{{ doc }}</div>
+                            <form method="post" action="/rag/delete">
+                                <input type="hidden" name="filename" value="{{ doc }}">
+                                <button class="button" type="submit" style="background:#b71c1c; padding:4px 8px;">Удалить</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% else %}
+            <div class="muted" style="margin-top:10px;">Документы не загружены.</div>
+        {% endif %}
+
+        <div class="muted" style="margin-top:8px;">
+            Поддерживаются .txt и .md. Для больших файлов используйте несколько частей.
+        </div>
+    </div>
 </div>
 
 <div id="filtersModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
@@ -99,8 +223,19 @@ info: #e8f5e9 info started connected</pre>
 
 <div id="resetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
     <div style="background:white; padding:20px; border-radius:8px; max-width:520px; width:90%; box-shadow:0 6px 24px rgba(0,0,0,0.2);">
-        <h3 style="margin-top:0;">Подтвердите полный сброс</h3>
-        <p>Будут удалены настройки подключения, выбранная таблица и таблица ответов ИИ. Действие необратимо.</p>
+        <h3 style="margin-top:0;">Полный сброс настроек</h3>
+        <p>Отметьте, что нужно удалить. Все настройки подключения будут сброшены.</p>
+        <form id="resetCustomForm" method="post" action="/reset_custom" style="margin-top:10px;">
+            <label style="display:block; text-align:left; margin-bottom:8px;">
+                <input type="checkbox" name="remove_docs" value="1" checked style="width:auto; margin:0 6px 0 0; vertical-align:middle;">&nbsp;&nbsp;Удалить загруженные документы RAG
+            </label>
+            <label style="display:block; text-align:left; margin-bottom:8px;">
+                <input type="checkbox" name="remove_index" value="1" checked style="width:auto; margin:0 6px 0 0; vertical-align:middle;">&nbsp;&nbsp;Очистить индекс RAG
+            </label>
+            <label style="display:block; text-align:left; margin-bottom:8px;">
+                <input type="checkbox" name="remove_ai_db" value="1" checked style="width:auto; margin:0 6px 0 0; vertical-align:middle;">&nbsp;&nbsp;Удалить базу ответов ИИ (таблица log_solutions)
+            </label>
+        </form>
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
             <button id="cancelReset" class="button" type="button" style="background:#9e9e9e;">Отмена</button>
             <button id="confirmReset" class="button" type="button" style="background:#b71c1c;">Подтвердить сброс</button>
@@ -132,7 +267,7 @@ document.getElementById("cancelReset").addEventListener("click", function () {
     document.getElementById("resetModal").style.display = "none";
 });
 document.getElementById("confirmReset").addEventListener("click", function () {
-    document.getElementById("resetForm").submit();
+    document.getElementById("resetCustomForm").submit();
 });
 </script>
 
@@ -148,6 +283,7 @@ document.getElementById("cancelFilters").addEventListener("click", function () {
 <script>
 const providerSelect = document.getElementById("aiProvider");
 const modelSelect = document.getElementById("aiModel");
+const embedSelect = document.getElementById("ragEmbeddingModel");
 
 async function reloadModels() {
     const provider = providerSelect.value;
@@ -185,6 +321,41 @@ async function reloadModels() {
 }
 
 providerSelect.addEventListener("change", reloadModels);
+</script>
+
+<script>
+async function reloadEmbeddingModels() {
+    if (!embedSelect) return;
+    const previous = embedSelect.dataset.selected || embedSelect.value || "";
+    try {
+        const r = await fetch("/embedding_models");
+        const data = await r.json();
+        const models = Array.isArray(data.models) ? data.models : [];
+        embedSelect.innerHTML = "";
+        if (!models.length) {
+            const opt = document.createElement("option");
+            opt.value = previous;
+            opt.textContent = previous || "не найдено";
+            embedSelect.appendChild(opt);
+            return;
+        }
+        models.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            embedSelect.appendChild(opt);
+        });
+        if (models.includes(previous)) {
+            embedSelect.value = previous;
+        } else {
+            embedSelect.value = models[0];
+        }
+    } catch (e) {
+        console.error("Failed to load embedding models", e);
+    }
+}
+
+reloadEmbeddingModels();
 </script>
 
 <script>

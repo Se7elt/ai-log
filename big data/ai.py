@@ -41,7 +41,24 @@ def _parse_model_names(data):
     return unique
 
 
-def _get_ollama_models(timeout: int = 2):
+def _is_embedding_model(name: str) -> bool:
+    n = (name or "").lower()
+    return "embed" in n or "embedding" in n
+
+
+def _filter_non_embedding_models(models: list) -> list:
+    if not models:
+        return []
+    return [m for m in models if not _is_embedding_model(m)]
+
+
+def _filter_embedding_models(models: list) -> list:
+    if not models:
+        return []
+    return [m for m in models if _is_embedding_model(m)]
+
+
+def _get_ollama_models_raw(timeout: int = 2):
     endpoints = ["/api/models", "/api/tags"]
     for endpoint in endpoints:
         try:
@@ -55,7 +72,11 @@ def _get_ollama_models(timeout: int = 2):
     return [DEFAULT_MODEL]
 
 
-def _get_lmstudio_models(timeout: int = 2):
+def _get_ollama_models(timeout: int = 2):
+    return _filter_non_embedding_models(_get_ollama_models_raw(timeout=timeout))
+
+
+def _get_lmstudio_models_raw(timeout: int = 2):
     endpoints = [
         "/api/v0/models",
         "/api/v0/models?state=downloaded",
@@ -89,11 +110,24 @@ def _get_lmstudio_models(timeout: int = 2):
     return [DEFAULT_MODEL]
 
 
+def _get_lmstudio_models(timeout: int = 2):
+    return _filter_non_embedding_models(_get_lmstudio_models_raw(timeout=timeout))
+
+
 def get_available_models(provider: str = DEFAULT_PROVIDER, timeout: int = 2):
     provider = (provider or DEFAULT_PROVIDER).strip().lower()
     if provider == "lmstudio":
         return _get_lmstudio_models(timeout=timeout)
     return _get_ollama_models(timeout=timeout)
+
+
+def get_embedding_models(provider: str = "lmstudio", timeout: int = 2):
+    provider = (provider or "lmstudio").strip().lower()
+    if provider != "lmstudio":
+        return []
+    models = _get_lmstudio_models_raw(timeout=timeout)
+    embed = _filter_embedding_models(models)
+    return embed
 
 
 def _build_ollama_options(options: dict | None):
@@ -113,6 +147,36 @@ def _build_ollama_options(options: dict | None):
             continue
         out[target] = val
     return out or None
+
+
+def _extract_rag_sources(rag_context: str) -> list:
+    sources = []
+    if not rag_context:
+        return sources
+    for line in rag_context.splitlines():
+        line = line.strip()
+        if line.startswith("[SOURCE:") and line.endswith("]"):
+            name = line[len("[SOURCE:"):-1].strip()
+            if name and name not in sources:
+                sources.append(name)
+    return sources
+
+
+def _strip_doc_source_line(text: str) -> str:
+    if not text:
+        return text
+    lines = text.splitlines()
+    out = []
+    skipped = 0
+    for line in lines:
+        if skipped == 0:
+            raw = line.strip()
+            raw = raw.strip("*").strip()
+            if raw.lower().startswith("источник документации"):
+                skipped = 1
+                continue
+        out.append(line)
+    return "\n".join(out).strip()
 
 
 def stream_thinking(
@@ -196,6 +260,8 @@ def generate_solution(
     provider: str = DEFAULT_PROVIDER,
     options: dict | None = None,
     enable_thinking: bool = True,
+    rag_enabled: bool = False,
+    rag_context: str = "",
 ):
     thinking_model = model or DEFAULT_MODEL
     thinking_result = ""
@@ -226,6 +292,8 @@ def generate_solution(
         provider=provider, 
         options=options,
         mode=mode,
+        rag_enabled=rag_enabled,
+        rag_context=rag_context,
     )
 
 
@@ -237,6 +305,8 @@ def generate_final_answer(
     provider: str = DEFAULT_PROVIDER,
     options: dict | None = None,
     mode: str = "reasoning",
+    rag_enabled: bool = False,
+    rag_context: str = "",
 ) -> str:
     mode = (mode or "reasoning").strip().lower()
     is_fast = mode == "fast"
@@ -245,6 +315,19 @@ def generate_final_answer(
     context_block = (
         f"\n\nМОИ РАЗМЫШЛЕНИЯ:\n{thinking_context}" if (thinking_context and not is_fast) else ""
     )
+
+    rag_instruction = ""
+    rag_block = ""
+    if rag_enabled:
+        rag_instruction = (
+            "Обязательно укажи строку 'Источник документации: ...'. "
+            "Если использовал RAG, перечисли источники. "
+            "Если релевантной документации нет, напиши 'Источник документации: не найден'."
+        )
+        if rag_context:
+            rag_block = f"\n\nДОКУМЕНТАЦИЯ (RAG):\n{rag_context}"
+        else:
+            rag_block = "\n\nДОКУМЕНТАЦИЯ (RAG):\n[НЕТ РЕЛЕВАНТНЫХ ФРАГМЕНТОВ]"
 
     if is_fast:
         prompt = f"""
@@ -255,8 +338,10 @@ def generate_final_answer(
 1. Сначала укажи источник ошибки (IDE, сервис, ОС, приложение).
 2. Затем — одно конкретное действие для исправления.
 3. Максимальная краткость, без пояснений и рассуждений.
+{rag_instruction}
 
-ЛОГ:
+ЛОГ:{rag_block}
+
 {log_text}
 """
     else:
@@ -268,8 +353,9 @@ def generate_final_answer(
 1. Сначала укажи источник ошибки (IDE, сервис, ОС, приложение).
 2. Затем — конкретное действие для исправления.
 3. Без воды, но с контекстом.
+{rag_instruction}
 
-ЛОГ:{context_block}
+ЛОГ:{context_block}{rag_block}
 
 {log_text}
 """
@@ -277,9 +363,18 @@ def generate_final_answer(
     use_provider = (provider or DEFAULT_PROVIDER).strip().lower()
 
     if use_provider == "lmstudio":
+        messages = []
+        if rag_enabled:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": "Используй только предоставленный документированный контекст, если он доступен.",
+                }
+            )
+        messages.append({"role": "user", "content": prompt})
         payload = {
             "model": use_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "stream": False,
         }
         if options and options.get("temperature") is not None:
@@ -291,7 +386,15 @@ def generate_final_answer(
         ) as r:
             r.raise_for_status()
             data = r.json()
-            return data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            result = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            if rag_enabled:
+                result = _strip_doc_source_line(result)
+                sources = _extract_rag_sources(rag_context)
+                if sources:
+                    result = f"Источник документации: {', '.join(sources)}\n{result}"
+                else:
+                    result = f"Источник документации: не найден\n{result}"
+            return result
 
     payload = {"model": use_model, "prompt": prompt, "stream": False}
     ollama_options = _build_ollama_options(options)
@@ -304,4 +407,12 @@ def generate_final_answer(
     ) as r:
         r.raise_for_status()
         data = r.json()
-        return data.get("response", "").strip()
+        result = data.get("response", "").strip()
+        if rag_enabled:
+            result = _strip_doc_source_line(result)
+            sources = _extract_rag_sources(rag_context)
+            if sources:
+                result = f"Источник документации: {', '.join(sources)}\n{result}"
+            else:
+                result = f"Источник документации: не найден\n{result}"
+        return result

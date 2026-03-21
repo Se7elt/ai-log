@@ -242,6 +242,10 @@ def ai_solution(log_id: str, mode: str = "reasoning"):
         model = settings.get("model")
         ai_options = settings.get("ai_options") or {}
         ai_provider = (settings.get("ai_provider") or "ollama").strip().lower()
+        rag_enabled = bool(settings.get("rag_enabled"))
+        rag_embedding_model = settings.get("rag_embedding_model", "")
+        rag_top_k = settings.get("rag_top_k", 4)
+        rag_max_chars = settings.get("rag_max_chars", 2000)
         if not model:
             # log attempt and inform client
             try:
@@ -252,6 +256,22 @@ def ai_solution(log_id: str, mode: str = "reasoning"):
 
         use_mode = (mode or "reasoning").strip().lower()
         enable_thinking = use_mode != "fast"
+        rag_context = ""
+        if rag_enabled and rag_embedding_model:
+            try:
+                from rag import retrieve_context
+                rag_context = retrieve_context(
+                    query=log_text,
+                    embedding_model=rag_embedding_model,
+                    top_k=rag_top_k,
+                    max_total_chars=rag_max_chars,
+                )
+            except Exception as e:
+                try:
+                    add_notification("RAG retrieve error", str(e))
+                except Exception:
+                    pass
+
         answer = generate_solution(
             log_text,
             timeout=300,
@@ -259,6 +279,8 @@ def ai_solution(log_id: str, mode: str = "reasoning"):
             provider=ai_provider,
             options=ai_options,
             enable_thinking=enable_thinking,
+            rag_enabled=rag_enabled,
+            rag_context=rag_context,
         )
         return {"text": answer}
     except Exception as e:
