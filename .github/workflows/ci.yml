@@ -22,10 +22,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-        working-directory: ai-log
+        working-directory: .
 
       - name: Run tests
         run: |
           python -m pytest -q
-        working-directory: "ai-log/big data"
-
+        working-directory: "big data"
