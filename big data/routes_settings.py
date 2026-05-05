@@ -5,6 +5,7 @@ from config import load_settings, save_settings_file, load_filters, save_filters
 from db import get_logs_conn
 from pathlib import Path
 from rag import DOCS_DIR, reindex_documents
+from templating_utils import render_template
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -15,6 +16,9 @@ def settings_page(request: Request):
     settings = load_settings() or {}
     ai_provider = (settings.get("ai_provider") or "ollama").strip().lower()
     ai_options = settings.get("ai_options") or {}
+    ai_endpoints = settings.get("ai_endpoints") or {}
+    ollama_base_url = ai_endpoints.get("ollama", "")
+    lmstudio_base_url = ai_endpoints.get("lmstudio", "")
     rag_enabled = bool(settings.get("rag_enabled"))
     rag_embedding_model = settings.get("rag_embedding_model", "")
     rag_top_k = settings.get("rag_top_k", 4)
@@ -54,16 +58,19 @@ def settings_page(request: Request):
         else:
             filters_lines.append(f"{name}: {' '.join(words)}")
 
-    return templates.TemplateResponse(
+    return render_template(
+        templates,
+        request,
         "settings.html",
         {
-            "request": request,
             "settings": settings,
             "models": models,
             "providers": providers,
             "ai_provider": ai_provider,
             "filters_text": "\n".join(filters_lines),
             "ai_options": ai_options,
+            "ollama_base_url": ollama_base_url,
+            "lmstudio_base_url": lmstudio_base_url,
             "rag_enabled": rag_enabled,
             "rag_embedding_model": rag_embedding_model,
             "rag_top_k": rag_top_k,
@@ -123,6 +130,8 @@ def save_settings(
     logs_per_page: int = Form(...),
     ai_provider: str = Form("ollama"),
     model: str = Form(...),
+    ollama_base_url: str = Form(""),
+    lmstudio_base_url: str = Form(""),
     context_length: str = Form(""),
     gpu_offload: str = Form(""),
     cpu_threads: str = Form(""),
@@ -139,6 +148,14 @@ def save_settings(
     settings["logs_per_page"] = logs_per_page
     settings["ai_provider"] = provider
     settings["model"] = model
+
+    # Provider endpoints: empty means defaults (localhost).
+    endpoints = settings.get("ai_endpoints") or {}
+    if ollama_base_url is not None:
+        endpoints["ollama"] = (ollama_base_url or "").strip()
+    if lmstudio_base_url is not None:
+        endpoints["lmstudio"] = (lmstudio_base_url or "").strip()
+    settings["ai_endpoints"] = endpoints
     ai_options = {}
     ctx = _to_int(context_length)
     gpu = _to_int(gpu_offload)

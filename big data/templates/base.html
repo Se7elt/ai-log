@@ -191,7 +191,6 @@ select {
 <header style="display:flex; gap:12px; align-items:center; margin-bottom:18px;">
     <a href="/" class="button" style="padding:6px 10px; background:#2e7d32;">Главная</a>
     <a href="/settings" class="button" style="padding:6px 10px; background:#2e7d32;">Настройки</a>
-    <a href="/controller" class="button" style="padding:6px 10px; background:#2e7d32;">Контроллер</a>
 
     <div style="margin-left:auto; display:flex; align-items:center;">
         <button id="notifBtn" class="button" style="position:relative; padding:6px 10px; display:inline-flex; align-items:center; justify-content:center;">
@@ -233,6 +232,9 @@ async function fetchNotifCount() {
         // ignore
     }
 }
+
+// Allow other pages to refresh badge after an event (e.g. creating a notification).
+window.refreshNotifCount = fetchNotifCount;
 
 async function openNotifPanel() {
     const panel = document.getElementById('notifPanel');
@@ -293,9 +295,8 @@ document.getElementById('clearNotifs').addEventListener('click', async function 
     }
 });
 
-// poll count every 10s
+// Fetch once on page load; further refreshes should be triggered by events.
 fetchNotifCount();
-setInterval(fetchNotifCount, 10000);
 </script>
 
 {% block content %}{% endblock %}

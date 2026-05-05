@@ -61,16 +61,16 @@
                     <th>
                         {% if sort == col %}
                             {% if order == "asc" %}
-                                <a href="/?page={{ page }}&sort={{ col }}&order=desc" style="color:white">
+                                <a href="/?page={{ page }}&sort={{ col }}&order=desc&level={{ level }}&q={{ q }}" style="color:white">
                                     {{ col }} ▲
                                 </a>
                             {% else %}
-                                <a href="/?page={{ page }}&sort={{ col }}&order=asc" style="color:white">
+                                <a href="/?page={{ page }}&sort={{ col }}&order=asc&level={{ level }}&q={{ q }}" style="color:white">
                                     {{ col }} ▼
                                 </a>
                             {% endif %}
                         {% else %}
-                            <a href="/?page=1&sort={{ col }}&order=asc" style="color:white">
+                            <a href="/?page=1&sort={{ col }}&order=asc&level={{ level }}&q={{ q }}" style="color:white">
                                 {{ col }}
                             </a>
                         {% endif %}
@@ -114,11 +114,7 @@
         <div>
             {% if page > 1 %}
             <a class="button"
-               href="/?page={{ page - 1 }}
-                      &sort={{ sort }}
-                      &order={{ order }}
-                      &level={{ level }}
-                      &q={{ q }}">
+               href="/?page={{ page - 1 }}&sort={{ sort }}&order={{ order }}&level={{ level }}&q={{ q }}">
                 ⬅ Назад
             </a>
             {% endif %}
@@ -131,11 +127,7 @@
         <div>
             {% if page < total_pages %}
             <a class="button"
-               href="/?page={{ page + 1 }}
-                      &sort={{ sort }}
-                      &order={{ order }}
-                      &level={{ level }}
-                      &q={{ q }}">
+               href="/?page={{ page + 1 }}&sort={{ sort }}&order={{ order }}&level={{ level }}&q={{ q }}">
                 Вперёд ➡
             </a>
             {% endif %}

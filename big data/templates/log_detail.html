@@ -43,9 +43,18 @@
 {% if solutions %}
     {% for s in solutions %}
         <div style="margin-bottom: 15px;">
-            <span class="badge">{{ s[1] }}</span>
-            <small style="color: #666;">{{ s[2] }}</small>
-            <pre style="background:#f6fff6; padding:10px;">{{ s[0] }}</pre>
+            <div style="display:flex; align-items:center; gap:10px; justify-content:space-between;">
+                <div>
+                    <span class="badge">{{ s[2] }}</span>
+                    <small style="color: #666;">{{ s[3] }}</small>
+                </div>
+                <form method="post" action="/delete_solution" onsubmit="return confirm('Удалить решение?');">
+                    <input type="hidden" name="log_id" value="{{ log_id }}">
+                    <input type="hidden" name="solution_id" value="{{ s[0] }}">
+                    <button class="button" type="submit" style="background:#b71c1c; padding:4px 8px;">Удалить</button>
+                </form>
+            </div>
+            <pre style="background:#f6fff6; padding:10px;">{{ s[1] }}</pre>
         </div>
     {% endfor %}
 {% else %}
@@ -106,7 +115,11 @@ function loadAISolution(btn) {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ title: "AI generation blocked", text: "User attempted AI generation but no model configured" })
-        }).catch(()=>{});
+        })
+        .then(() => {
+            if (window.refreshNotifCount) window.refreshNotifCount();
+        })
+        .catch(()=>{});
         return;
     }
 

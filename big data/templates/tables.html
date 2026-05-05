@@ -1,14 +1,94 @@
 ﻿{% extends "base.html" %}
 {% block content %}
-<h2>📂 Таблицы в базе данных</h2>
+<style>
+.tables-wrap {
+    max-width: 980px;
+}
+.tables-head {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.tables-title {
+    margin: 0;
+}
+.tables-subtitle {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+.tables-search {
+    width: 320px;
+    max-width: 100%;
+    margin: 0;
+}
+.tables-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+.table-item {
+    background: #fff;
+    border: 1px solid #c8e6c9;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.table-name {
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    color: #1f3d1f;
+    word-break: break-word;
+}
+.table-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+</style>
 
-<ul>
-{% for t in tables %}
-    <li>
-        <a href="/preview/{{ t[0] }}">{{ t[0] }}</a>
-    </li>
-{% endfor %}
-</ul>
+<div class="tables-wrap">
+    <div class="tables-head">
+        <div>
+            <h2 class="tables-title">Таблицы</h2>
+            <div class="tables-subtitle">Выберите таблицу с логами для предпросмотра и подключения.</div>
+        </div>
+        <div>
+            <input id="tableSearch" class="tables-search" type="text" placeholder="Поиск по названию таблицы" autocomplete="off">
+        </div>
+    </div>
 
+    <div class="tables-list" id="tablesList">
+        {% for t in tables %}
+            {% set name = t[0] %}
+            <div class="table-item" data-name="{{ name|lower }}">
+                <div class="table-name">{{ name }}</div>
+                <div class="table-actions">
+                    <a class="button" href="/preview/{{ name }}" style="padding:6px 10px;">Открыть</a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+const searchEl = document.getElementById("tableSearch");
+const listEl = document.getElementById("tablesList");
+if (searchEl && listEl) {
+    searchEl.addEventListener("input", function () {
+        const q = (searchEl.value || "").trim().toLowerCase();
+        listEl.querySelectorAll(".table-item").forEach((el) => {
+            const name = el.getAttribute("data-name") || "";
+            el.style.display = (!q || name.includes(q)) ? "flex" : "none";
+        });
+    });
+}
+</script>
 {% endblock %}
-

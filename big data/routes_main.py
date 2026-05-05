@@ -1,11 +1,12 @@
 ﻿from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from db import get_logs_conn, ensure_solution_table
 from config import load_config, load_settings, load_filters, add_notification, LOGS_PER_PAGE
 from ai import generate_solution
 from psycopg2 import sql
 from math import ceil
+from templating_utils import render_template
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -34,8 +35,7 @@ def index(
         filters = load_filters() or {}
         ai_model = (load_settings() or {}).get("model")
 
-        return templates.TemplateResponse("index.html", {
-            "request": request,
+        return render_template(templates, request, "index.html", {
             "rows": rows,
             "columns": columns,
             "page": page,
@@ -70,8 +70,7 @@ def index(
         filters = load_filters() or {}
         ai_model = (load_settings() or {}).get("model")
 
-        return templates.TemplateResponse("index.html", {
-            "request": request,
+        return render_template(templates, request, "index.html", {
             "rows": rows,
             "columns": columns,
             "page": page,
@@ -157,8 +156,7 @@ def index(
 
     ai_model = settings.get("model")
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return render_template(templates, request, "index.html", {
         "rows": rows,
         "columns": columns,
         "page": page,
@@ -193,7 +191,7 @@ def log_detail(request: Request, log_id: str):
 
     columns = [desc[0] for desc in cur.description]
     cur.execute("""
-        SELECT solution, source, created_at
+        SELECT id, solution, source, created_at
         FROM log_solutions
         WHERE table_name=%s AND log_id=%s
         ORDER BY created_at DESC
@@ -206,7 +204,7 @@ def log_detail(request: Request, log_id: str):
     # include AI model for client-side checks
     settings = load_settings()
     ai_model = settings.get("model")
-    return templates.TemplateResponse("log_detail.html", {"request": request, "columns": columns, "log_row": log_row, "solutions": solutions, "log_id": log_id, "ai_model": ai_model})
+    return render_template(templates, request, "log_detail.html", {"columns": columns, "log_row": log_row, "solutions": solutions, "log_id": log_id, "ai_model": ai_model})
 
 
 @router.post("/add_solution")
@@ -218,6 +216,21 @@ def add_solution(log_id: str = Form(...), solution: str = Form(...)):
         INSERT INTO log_solutions (table_name, log_id, solution, source)
         VALUES (%s, %s, %s, 'manual')
     """, (cfg["table"], log_id, solution))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(f"/log/{log_id}", status_code=303)
+
+
+@router.post("/delete_solution")
+def delete_solution(log_id: str = Form(...), solution_id: int = Form(...)):
+    cfg = load_config()
+    conn = get_logs_conn(cfg)
+    cur = conn.cursor()
+    cur.execute("""
+        DELETE FROM log_solutions
+        WHERE id=%s AND table_name=%s AND log_id=%s
+    """, (solution_id, cfg["table"], log_id))
     conn.commit()
     cur.close()
     conn.close()

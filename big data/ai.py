@@ -1,11 +1,47 @@
 ﻿import json
 import subprocess
 import requests
+from config import load_settings
 
 DEFAULT_PROVIDER = "ollama"
 DEFAULT_MODEL = "qwen3:4b"
 OLLAMA_BASE_URL = "http://localhost:11434"
 LM_STUDIO_BASE_URL = "http://localhost:1234"
+
+
+def _normalize_base_url(url: str | None) -> str | None:
+    if url is None:
+        return None
+    url = str(url).strip()
+    if not url:
+        return None
+    if not (url.startswith("http://") or url.startswith("https://")):
+        url = "http://" + url
+    return url.rstrip("/")
+
+
+def _get_provider_base_url(provider: str) -> str:
+    """
+    Local by default, but can be overridden in settings.json (ai_endpoints).
+    """
+    provider = (provider or DEFAULT_PROVIDER).strip().lower()
+    settings = load_settings() or {}
+    endpoints = settings.get("ai_endpoints") or {}
+
+    if provider == "ollama":
+        override = (
+            endpoints.get("ollama")
+            or settings.get("ollama_base_url")
+            or settings.get("ollama_url")
+        )
+        return _normalize_base_url(override) or OLLAMA_BASE_URL
+
+    override = (
+        endpoints.get("lmstudio")
+        or settings.get("lmstudio_base_url")
+        or settings.get("lmstudio_url")
+    )
+    return _normalize_base_url(override) or LM_STUDIO_BASE_URL
 
 
 def get_providers():
@@ -59,10 +95,11 @@ def _filter_embedding_models(models: list) -> list:
 
 
 def _get_ollama_models_raw(timeout: int = 2):
+    base_url = _get_provider_base_url("ollama")
     endpoints = ["/api/models", "/api/tags"]
     for endpoint in endpoints:
         try:
-            resp = requests.get(f"{OLLAMA_BASE_URL}{endpoint}", timeout=timeout)
+            resp = requests.get(f"{base_url}{endpoint}", timeout=timeout)
             resp.raise_for_status()
             models = _parse_model_names(resp.json())
             if models:
@@ -77,6 +114,7 @@ def _get_ollama_models(timeout: int = 2):
 
 
 def _get_lmstudio_models_raw(timeout: int = 2):
+    base_url = _get_provider_base_url("lmstudio")
     endpoints = [
         "/api/v0/models",
         "/api/v0/models?state=downloaded",
@@ -85,7 +123,7 @@ def _get_lmstudio_models_raw(timeout: int = 2):
     ]
     for endpoint in endpoints:
         try:
-            resp = requests.get(f"{LM_STUDIO_BASE_URL}{endpoint}", timeout=timeout)
+            resp = requests.get(f"{base_url}{endpoint}", timeout=timeout)
             resp.raise_for_status()
             models = _parse_model_names(resp.json())
             if models:
@@ -195,6 +233,7 @@ def stream_thinking(
     full = ""
 
     if use_provider == "lmstudio":
+        base_url = _get_provider_base_url("lmstudio")
         payload = {
             "model": use_model,
             "messages": [{"role": "user", "content": prompt}],
@@ -203,7 +242,7 @@ def stream_thinking(
         if options and options.get("temperature") is not None:
             payload["temperature"] = options["temperature"]
         with requests.post(
-            f"{LM_STUDIO_BASE_URL}/v1/chat/completions",
+            f"{base_url}/v1/chat/completions",
             json=payload,
             stream=True,
             timeout=timeout,
@@ -228,12 +267,13 @@ def stream_thinking(
                     print(chunk, end="", flush=True)
                     full += chunk
     else:
+        base_url = _get_provider_base_url("ollama")
         payload = {"model": use_model, "prompt": prompt, "stream": True}
         ollama_options = _build_ollama_options(options)
         if ollama_options:
             payload["options"] = ollama_options
         with requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
+            f"{base_url}/api/generate",
             json=payload,
             stream=True,
             timeout=timeout,
@@ -363,6 +403,7 @@ def generate_final_answer(
     use_provider = (provider or DEFAULT_PROVIDER).strip().lower()
 
     if use_provider == "lmstudio":
+        base_url = _get_provider_base_url("lmstudio")
         messages = []
         if rag_enabled:
             messages.append(
@@ -380,7 +421,7 @@ def generate_final_answer(
         if options and options.get("temperature") is not None:
             payload["temperature"] = options["temperature"]
         with requests.post(
-            f"{LM_STUDIO_BASE_URL}/v1/chat/completions",
+            f"{base_url}/v1/chat/completions",
             json=payload,
             timeout=timeout,
         ) as r:
@@ -397,11 +438,12 @@ def generate_final_answer(
             return result
 
     payload = {"model": use_model, "prompt": prompt, "stream": False}
+    base_url = _get_provider_base_url("ollama")
     ollama_options = _build_ollama_options(options)
     if ollama_options:
         payload["options"] = ollama_options
     with requests.post(
-        f"{OLLAMA_BASE_URL}/api/generate",
+        f"{base_url}/api/generate",
         json=payload,
         timeout=timeout,
     ) as r:

@@ -5,6 +5,7 @@ from db import get_logs_conn, ensure_solution_table
 from config import save_config, load_config, add_notification
 import psycopg2
 from psycopg2 import sql
+from templating_utils import render_template
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -12,7 +13,7 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/connect", response_class=HTMLResponse)
 def connect_form(request: Request):
-    return templates.TemplateResponse("connect.html", {"request": request})
+    return render_template(templates, request, "connect.html", {})
 
 
 @router.post("/connect")
@@ -69,7 +70,7 @@ def list_tables(request: Request):
     cur.close()
     conn.close()
 
-    return templates.TemplateResponse("tables.html", {"request": request, "tables": tables})
+    return render_template(templates, request, "tables.html", {"tables": tables})
 
 
 @router.get("/preview/{table}", response_class=HTMLResponse)
@@ -91,7 +92,7 @@ def preview_table(request: Request, table: str):
     cur.close()
     conn.close()
 
-    return templates.TemplateResponse("preview.html", {"request": request, "rows": rows, "columns": columns, "table": table})
+    return render_template(templates, request, "preview.html", {"rows": rows, "columns": columns, "table": table})
 
 
 @router.post("/use_table")

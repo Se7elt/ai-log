@@ -85,6 +85,25 @@
                         <option value="{{ m }}" {% if settings.get("model") == m %}selected{% endif %}>{{ m }}</option>
                     {% endfor %}
                 </select>
+
+                <div class="muted" style="margin-top:4px;">
+                    Если ИИ запущен на другом устройстве в сети, укажите адрес подключения (иначе оставьте пустым для localhost).
+                    <span
+                        title="LM Studio иногда показывает адрес вида 169.254.x.x (APIPA/link-local). Это адрес, который появляется при проблемах с получением нормального IP и обычно не маршрутизируется в вашей LAN. Поэтому с другого компьютера запросы часто не доходят. Используйте IPv4 активного адаптера сервера (обычно 192.168.x.x или 10.x.x.x) и убедитесь, что порт разрешен в Firewall."
+                        style="cursor:help; text-decoration:underline; text-decoration-style:dotted;"
+                    >Почему не 169.254.x.x?</span>
+                </div>
+
+                <div class="settings-row two" style="align-items:end;">
+                    <label>
+                        <div><strong>Ollama URL</strong></div>
+                        <input type="text" name="ollama_base_url" placeholder="http://192.168.1.10:11434" value="{{ ollama_base_url }}">
+                    </label>
+                    <label>
+                        <div><strong>LM Studio URL</strong></div>
+                        <input type="text" name="lmstudio_base_url" placeholder="http://192.168.1.10:1234" value="{{ lmstudio_base_url }}">
+                    </label>
+                </div>
             </div>
         </div>
 
